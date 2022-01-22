@@ -1,0 +1,731 @@
+---
+title: "Ethiopia manuscript results"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    theme: cerulean
+    highlight: zenburn
+always_allow_html: true
+---
+
+##### 
+<br>
+
+```{r global_options, include=FALSE}
+
+knitr::opts_chunk$set(fig.width = 12,
+                      fig.height = 8,
+                      fig.path = '../results/figs/test-summary/',
+                      echo = TRUE, warning = FALSE, message = FALSE)
+
+options(DT.options = list(pageLength = 100,
+                          dom = 'Bft',
+                          filter = "top",
+                          buttons = c('copy', 'csv')))
+
+out_figs_dir = "results/figs"
+if( !exists(out_figs_dir) ) dir.create(out_figs_dir, recursive = TRUE)
+```
+
+
+```{r}
+
+library(tidyr)
+library(ggplot2)
+library(knitr)
+library(DT)
+library(stringr)
+library(xtable)
+library(hrbrthemes)
+library(dplyr)
+library(forcats)
+library(finalfit)
+library(dplyr)
+library(stringr)
+library(janitor)
+# library(sf)
+# library(ggsn)
+# library(htmltools)
+library(lme4)
+library(extrafont)
+library(cowplot)
+library(knitr)
+library(parameters)
+
+# Load fonts
+extrafont::loadfonts(quiet = TRUE)
+
+```
+
+
+```{r input-data, results = 'hide'}
+
+bats_res = readRDS("data/Ethiopia_bat-info_test-summary.RDS")
+bats_res$SiteName = trimws(gsub("-\\<Bat\\>|\\<Bat\\>", "", bats_res$SiteName))
+bats_res$ConcurrentSamplingSite = bats_res$SiteName
+
+tests = readRDS("data/Ethiopia_bat-test-info.RDS")
+tests$SiteName = trimws(gsub("-\\<Bat\\>|\\<Bat\\>", "", tests$SiteName))
+
+events = readRDS("data/Ethiopia_bat-sampling-events.RDS")
+
+names(bats_res)
+
+df = bats_res
+df$Family = str_to_title(df$Family)
+tests = left_join(tests, df[ , c("AnimalID", "Family")], by = "AnimalID")
+
+```
+
+##### Check that all bats were tested the same (unique test combinations):
+```{r}
+datatable(xtable(table(df$tests_done)), options = list(dom = 't'))
+```
+
+<br><br>
+
+## Number of bats testing positive
+Number of bats tested = `r nrow(df)`
+
+Number of bats testing positive = `r sum(df$is_positive)`
+
+Percent bats testing positive  = `r (sum(df$is_positive)/nrow(df)) * 100`
+
+<br><br>
+
+## Species of bats tested
+
+```{r}
+
+datatable(xtable(table(df$ScientificName, df$Family)))
+
+```
+
+<br><br>
+
+## Sampling events
+### Unique events
+
+```{r}
+
+# lapply(split(events, events$site_name), function(x) sort(unique(x$event_date)))
+lapply(split(df, df$SiteName), function(x) sort(unique(x$EventDate)))
+lapply(split(df, df$SiteName), function(x) table(x$EventDate, x$SeasonModelled, x$ScientificName, x$ConcurrentSamplingSite))
+```
+
+<br><br>
+
+### Figure 1: Sampling effort by event
+
+```{r, include = FALSE}
+
+date_order = unique(format(as.Date(sort(df$EventDate), format = "%Y-%m-%d"),
+                        "%Y-%B"))
+df$EventDate = format(as.Date(df$EventDate, format = "%Y-%m-%d"), "%Y-%B")
+df$EventDate = factor(df$EventDate, levels = date_order, ordered = TRUE)
+
+
+p_df = df %>%
+    group_by(ConcurrentSamplingSite, SeasonModelled, EventDate,
+             Sex, AgeClass, is_positive) %>%
+    arrange(EventDate) %>%
+    summarize(n = n()) %>%
+    mutate(is_positive = ifelse(is_positive, "Positive", "Negative")) %>%
+    mutate(is_positive = factor(is_positive, levels = c("Positive", "Negative")))
+
+levels(p_df$EventDate) = gsub("-", "\n", levels(p_df$EventDate))
+
+event_p =
+
+    ggplot(p_df, aes(x = EventDate, y = n, fill = is_positive, label = n)) +
+    geom_bar(stat="identity", width = 0.5) +
+    scale_fill_manual(values = c("#BD4F2C", "#2C42BD"), name = "Test result") +
+    theme_ipsum(base_size = 12) +
+    ylab("Number of bats") +
+    theme(
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.x = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_blank(),
+      legend.position = "top") +
+    scale_y_continuous(expand = c(0,1)) 
+
+
+
+cowplot::save_plot("results/figs/event-plot.pdf", event_p, base_height = 6)
+cowplot::save_plot("results/figs/event-plot.png", event_p, base_height = 6)
+
+
+bat_plot =
+
+    df %>%
+    select(ScientificName, is_positive) %>%
+    group_by(ScientificName, is_positive) %>%
+    summarize(n = n()) %>%
+    arrange(desc(n)) %>%
+    as.data.frame %>%
+    mutate(ScientificName = factor(ScientificName,
+                                   levels = c(
+                                              "Neoromicia cf. somalica",
+                                              "Mops midas",
+                                              "Chaerephon pumilus",
+                                              "Rhinopoma hardwickii"
+                                            ))) %>%
+    ggplot( aes(x = ScientificName, y= -n,
+                fill = as.factor(-is_positive), width = 0.75)) +
+    geom_bar(stat="identity") +
+    scale_fill_manual(values = c("#BD4F2C", "#2C42BD"), name = "") +
+    scale_x_discrete(name = "", position = "top") +
+    scale_y_continuous(name = "No. of bats",
+                       breaks = seq(0, -300, by = -50),  # y axis values (before coord_flip) 
+                       labels = seq(0,  300, by =  50)) +
+    coord_flip() +
+    theme_ipsum(base_size = 12, plot_title_size = 12) +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position="none"
+    ) +
+    xlab("") +
+    ylab("Number of bats") +
+    labs(title = "Species tested")
+
+
+cowplot::save_plot("results/figs/bat-plot.pdf", bat_plot, base_height = 3)
+
+# Pie charts for species-event timeline
+sp_df = df %>%
+    select(ScientificName, is_positive, EventDate) %>%
+    group_by(ScientificName, is_positive, EventDate) %>%
+    summarize(n = n()) %>%
+    arrange(desc(n)) %>%
+    mutate(sp_e = paste0(EventDate, "_", ScientificName)) %>%
+    as.data.frame
+
+sp_l = split(sp_df, sp_df$sp_e)
+
+# ref:
+# http://www.sthda.com/english/wiki/ggplot2-pie-chart-quick-start-guide-r-software-and-data-visualization
+
+blank_theme = theme_minimal()+
+    theme(
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(),
+        panel.border = element_blank(),
+        panel.grid=element_blank(),
+        axis.ticks = element_blank(),
+        plot.title=element_text(size=14, face="bold"),
+        legend.position = "none"
+    )
+
+
+out_dir = "results/figs/event_pie"
+if( !dir.exists(out_dir)) dir.create(out_dir)
+
+lapply(sp_l, function(sp, out_dir) {
+    
+    if(nrow(sp) > 1) {
+        sp_p = sp %>%
+            ggplot(aes(x = "", y = n, fill = as.factor(-is_positive))) +
+            geom_bar(width = 1, stat="identity") +
+            scale_fill_manual(values = c("#BD4F2C", "#2C42BD"), name = "") +
+            coord_polar("y", start=0) +
+            theme_minimal() +
+            blank_theme
+
+        out_n = file.path(out_dir, paste0(gsub(" ", "_", unique(sp$sp_e)), ".pdf"))
+        cowplot::save_plot(out_n, sp_p, base_height = .5)
+        
+    } else {
+        sp_p = sp %>%
+            ggplot(aes(x = "", y = n, fill = "#B9B7B6")) +
+            geom_bar(width = 1, stat="identity") +
+            scale_fill_manual(values = "#2C42BD", name = "") +
+            coord_polar("y", start=0) +
+            theme_minimal() +
+            blank_theme
+
+        out_n = file.path(out_dir, paste0(gsub(" ", "_", unique(sp$sp_e)), ".pdf"))
+        cowplot::save_plot(out_n, sp_p, base_height = .5)
+    }
+        
+}, out_dir)
+
+
+```
+
+<!-- ![](../figures/Figure 2 Event-timeline_V2.png) -->
+
+<br><br>
+
+## General virus information
+### Numbers of viruses detected
+```{r}
+
+datatable(xtable(table(unlist(strsplit(df$pos_virus[ df$is_positive ], "; ")))))
+
+```
+
+<br><br>
+
+## Specific virus information
+### Table 1. Positive bats frequency by family, species and site name
+
+```{r}
+
+df_ani =
+
+    tests %>%
+    select(SiteName, ScientificName, AnimalID) %>%
+    group_by(SiteName, ScientificName) %>%
+    summarize(total_bats = length(unique(AnimalID))) %>%
+    as.data.frame() %>%
+    select(ScientificName, total_bats) %>%
+    adorn_totals("row")
+
+
+
+df_pos_ani =
+
+    tests %>%
+    select(SiteName, Family, ScientificName, AnimalID, VirusGroup) %>%
+    filter( !is.na(VirusGroup)) %>%
+    group_by(SiteName, Family, ScientificName) %>%
+    summarize(bats = length(unique(AnimalID))) %>%
+    as.data.frame() %>%
+    adorn_totals("row")
+
+
+
+df_pos_ani$bats = paste0(df_pos_ani$bats, "/",
+                                  df_ani$total_bats)
+
+
+df_spmn = 
+
+    tests %>%
+    select(SiteName, ScientificName, SpecimenType, SpecimenID) %>%
+    mutate(SpecimenType = paste0("n_",
+                                 gsub(" ", "_", SpecimenType))) %>%
+    group_by(SiteName, ScientificName, SpecimenType) %>%
+    summarize(total = length(unique(SpecimenID))) %>%
+    as.data.frame() %>%
+    spread(SpecimenType, total) %>%
+    adorn_totals("row") %>%
+    select(-SiteName)
+
+df_pos_spmn =
+
+    tests %>%
+    select(SiteName, ScientificName, SpecimenType, SpecimenID, VirusGroup) %>%
+    filter( !is.na(VirusGroup)) %>%
+    mutate(SpecimenType = gsub(" ", "_", SpecimenType)) %>%
+    group_by(SiteName, ScientificName, SpecimenType) %>%
+    summarize(pos = length(unique(SpecimenID))) %>%
+    as.data.frame() %>%
+    spread(SpecimenType, pos) %>%
+    mutate_all(~replace_na(., 0)) %>%
+    adorn_totals("row") %>%
+    select( -SiteName)
+
+df_pos_spmn$oral_swab = paste0(df_pos_spmn$oral_swab, "/",
+                               df_spmn$n_oral_swab)
+
+df_pos_spmn$rectal_swab = paste0(df_pos_spmn$rectal_swab, "/",
+                                 df_spmn$n_rectal_swab)
+
+pos_viruses =
+
+    tests %>%
+    select(ScientificName, VirusGroup, ViralFamily) %>%
+    filter( !is.na(VirusGroup)) %>%
+    group_by(ScientificName) %>%
+    summarize(
+        ViralFamily = paste0(sort(unique(ViralFamily)), collapse = "; "),
+        Viruses = paste0(sort(unique(VirusGroup)), collapse = "; "))
+
+bat_virus_info = left_join(df_pos_ani, df_pos_spmn, by = "ScientificName")
+bat_virus_info = left_join(bat_virus_info, pos_viruses, by = "ScientificName")
+
+datatable(bat_virus_info)
+```
+
+<br><br>
+
+### Coinfections
+```{r}
+
+df %>%
+    filter( is_positive & pos_virus_n > 1 ) %>%
+    select(SiteName, ScientificName, pos_virus) %>%
+    group_by(SiteName, ScientificName, pos_virus) %>%
+    summarize(n_bats = n()) %>%
+    datatable()
+
+
+```
+
+<br><br>
+
+### Figure 2. Virus plot
+
+```{r}
+
+bat_virus_n = df %>%
+    select(pos_virus, ScientificName, AnimalID) %>%
+    group_by(pos_virus, ScientificName) %>%
+    tally()
+    
+
+virus_plot =
+
+    df %>%
+    select(pos_virus, pos_virus_n, pos_virus_family,
+           ScientificName, SeasonModelled) %>%
+    drop_na() %>%
+    mutate(pos_virus = gsub("; ", "\nand ", pos_virus)) %>%
+    group_by(pos_virus, pos_virus_n, pos_virus_family,
+             ScientificName, SeasonModelled) %>%
+    summarize(n = n()) %>%
+    arrange(pos_virus_family, desc(n)) %>%
+    as.data.frame %>%
+    mutate(pos_virus = factor(pos_virus, unique(pos_virus)),
+           pos_virus = fct_rev(pos_virus),
+           ScientificName = factor(ScientificName,
+                                   levels = c(
+                                   "Rhinopoma hardwickii",
+                                   "Chaerephon pumilus",
+                                   "Mops midas", 
+                                   "Neoromicia cf. somalica"
+                                   ))) %>%
+    # ggplot( aes(x=pos_virus, y=n, fill = as.factor(pos_virus_n), label = n) ) +
+    ggplot(aes(x = reorder(pos_virus, n), y=n, fill = ScientificName, label = n) ) +
+    facet_wrap( ~ SeasonModelled ) +
+    scale_fill_manual(values = c("#CC6677", "#44AA99", "#DDCC77", "#AA4499"),
+                      name = "Bat species and\nsampling interface") +
+    geom_bar(stat="identity") +
+    ylim(0, 80) +
+    # geom_text( size = 3, nudge_y = 4) +
+    coord_flip() +
+    theme_ipsum(base_size = 10) +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position="right",
+      legend.text = element_text(face = "italic")
+    ) +
+    xlab("") +
+    ylab("Number of bats") +
+    labs(title = "Viruses detected in bats")
+
+
+cowplot::save_plot("results/figs/virus-plot.pdf",
+                   virus_plot, base_height = 5)
+
+virus_plot
+```
+
+<!-- ![](../figures/Figure 3 Virus-plot.png) -->
+
+<br><br>
+
+## Virus detection by specimen type {.tabset .tabset-fade .tabset-pills}
+### Breakdown of positive specimen types (at individual bat  level)
+
+Rectal swabs were the most common specimen type to yield a positive virus sequence (92/99 bats), including 27 bats from whom sequences were confirmed in both rectal and oral swabs. In addition, seven bats had viruses detected only via their oral swabs.
+
+```{r}
+
+df %>%
+    filter(is_positive) %>%
+    group_by(pos_specimen_type) %>%
+    tally() %>%
+    adorn_totals("row") %>%
+    datatable(options = list(dom = 't'))
+
+```
+
+<br><br>
+
+### Positive specimen types for bats with > 1 virus detected
+```{r}
+
+ids = df$AnimalID[ which(df$pos_virus_n > 1) ]
+multi_bats = unique(
+                 tests[ tests$AnimalID %in% ids & !is.na(tests$VirusGroup),
+                       c("AnimalID", "SpecimenType", "VirusGroup")]
+             )
+
+
+tbls = vector("list", 3)
+for(i in seq_along(ids)) {
+    tbls[[ i ]] = 
+        multi_bats %>%
+        filter(AnimalID %in% ids[ i ]) %>%
+        datatable(options = list(dom = 't'))
+}
+
+tbls[[1]]
+tbls[[2]]
+tbls[[3]]
+     
+
+```
+
+<br><br>
+
+### Virus group by specimen type (at individual bat level)
+```{r}
+
+df %>%
+    filter(is_positive) %>%
+    select(pos_virus, pos_specimen_type) %>%
+    group_by(pos_virus, pos_specimen_type) %>%
+    tally() %>%
+    as_data_frame() %>%
+    spread(pos_specimen_type, n) %>%
+    adorn_totals(c("row", "col")) %>%
+    datatable(options = list(dom = 't'))
+
+```
+
+<br><br>
+
+## Table 2. Fisher's exact tests {.tabset .tabset-fade .tabset-pills}
+
+### Table 2. Age, Sex, Season, species, specimen type
+
+Note from Julius' paper: Fisher’s exact test was used to
+examine the association of viral positivity with age and
+season using STATA 13.0 software. The level of significance
+was set at P  0.05 (Raymond and Rousset 1995).
+
+#### Crosstable
+```{r}
+
+df$AgeClass = word(df$AgeClass, 1)
+
+# table1( ~ is_positive | Sex, df)
+
+# Crosstable 
+dependent = "is_positive"
+explanatory = c("Sex",
+                "AgeClass",
+                "SeasonModelled",
+                "ScientificName")
+
+df %>%
+    summary_factorlist(dependent, explanatory, 
+                       p = TRUE,
+                       add_dependent_label = TRUE,
+                       p_cat = "fisher" # Fisher's Exact test 
+                       ) -> t1
+knitr::kable(t1, align=c("l", "l", "r", "r", "r"))
+
+df_spm = df[ , c("AnimalID", "is_positive", "pos_specimen_type")]
+df_spm = rbind(df_spm, df_spm)
+df_spm$specimen = rep(c("oral swab", "rectal swab"), each = nrow(df))
+
+df_spm$specimen_pos = mapply(grepl, df_spm$specimen, df_spm$pos_specimen_type)
+
+
+df %>%
+    mutate(interface = ifelse(ScientificName %in% "Rhinopoma hardwickii", "Cave",
+                              "Dwelling")) %>%
+    summary_factorlist("is_positive", "interface", 
+                       p = TRUE,
+                       add_dependent_label=TRUE,
+                       p_cat = "fisher" # Fisher's Exact test 
+                       ) -> t2
+knitr::kable(t2, align=c("l", "l", "r", "r", "r"))
+
+df_spm %>%
+    summary_factorlist("specimen_pos", "specimen", 
+                       p = TRUE,
+                       add_dependent_label=TRUE,
+                       p_cat = "fisher" # Fisher's Exact test 
+                       ) -> t3
+knitr::kable(t3, align=c("l", "l", "r", "r", "r"))
+
+
+# df_spm %>%
+#     ggplot(aes(x = specimen, y = specimen_pos)) +
+#     geom_bar(stat="identity", color="black", 
+#            position=position_dodge())
+
+
+
+```
+
+<br><br>
+
+### Data
+```{r, results='asis'}
+
+df$AgeClass = word(df$AgeClass, 1)
+
+df_summary = df %>%
+    group_by(ScientificName, SiteName, SeasonModelled, Sex, AgeClass, is_positive) %>%
+    summarize(n = n()) %>%
+    mutate(is_positive = ifelse(is_positive, "Positive", "Negative")) %>%
+    spread(key = is_positive, value = n) %>%
+    mutate_at(vars(Negative, Positive), replace_na, 0) %>%
+    mutate(Total = Negative + Positive) %>%
+    as.data.frame %>%
+    mutate_at(vars(AgeClass, ScientificName), as.factor) %>%
+    mutate(neg_percent = round(Negative/Total * 100, 2),
+           pos_percent = round(Positive/Total * 100, 2))
+    
+
+DT::datatable(df_summary, extensions = 'Buttons', filter = 'top', fillContainer = FALSE)
+
+```
+
+
+<br><bbr>
+
+## Exploring age/sex/season by species {.tabset .tabset-fade .tabset-pills}
+
+### Rhinopoma
+#### Crosstable
+```{r}
+
+# Crosstable 
+dependent = "is_positive"
+explanatory = c("Sex",
+                "AgeClass",
+                "SeasonModelled")
+
+df %>%
+    filter(ScientificName %in% "Rhinopoma hardwickii") %>%
+    summary_factorlist(dependent, explanatory, 
+                       p=TRUE,
+                       add_dependent_label=TRUE,
+                       p_cat = "fisher" # Fisher's Exact test 
+                       ) %>%
+    knitr::kable(align=c("l", "l", "r", "r", "r"))
+
+```
+
+
+<br><br>
+
+### Chaerephon
+#### Crosstable
+```{r}
+
+# Crosstable 
+dependent = "is_positive"
+explanatory = c(
+                  "Sex",
+                  "AgeClass",
+                  "SeasonModelled")
+
+df %>%
+    filter(ScientificName %in% "Chaerephon pumilus") %>%
+    summary_factorlist(dependent, explanatory, 
+                       p=TRUE,
+                       add_dependent_label=TRUE,
+                       p_cat = "fisher" # Fisher's Exact test 
+                       ) %>%
+    knitr::kable(align=c("l", "l", "r", "r", "r"))
+
+```
+
+
+<br><br>
+
+### Mops
+#### Crosstable
+```{r}
+
+# Crosstable 
+dependent = "is_positive"
+explanatory = c(
+                  "Sex",
+                  # "AgeClass", # there are no subadult for Mops
+                  "SeasonModelled")
+
+df %>%
+    filter(ScientificName %in% "Mops midas") %>%
+    summary_factorlist(dependent, explanatory, 
+                       p=TRUE,
+                       add_dependent_label=TRUE,
+                       p_cat = "fisher" # Fisher's Exact test 
+                       ) %>%
+    knitr::kable(align=c("l", "l", "r", "r", "r"))
+
+```
+
+<br><br>
+
+### Neoromicia cf. somalica
+#### Crosstable
+```{r}
+
+# Crosstable 
+dependent = "is_positive"
+explanatory = c(
+                  "Sex"
+                  # "AgeClass"
+                  # "SeasonModelled"
+              )
+
+df %>%
+    filter(ScientificName %in% "Neoromicia cf. somalica") %>%
+    summary_factorlist(dependent, explanatory, 
+                       p=TRUE,
+                       add_dependent_label=TRUE,
+                       p_cat = "fisher" # Fisher's Exact test 
+                       ) %>%
+    knitr::kable(align=c("l", "l", "r", "r", "r"))
+
+```
+
+<br>
+
+---
+
+<br>
+
+
+## Multivariable logistic regression analyses
+#### For _Rhinopoma hardwickii_, _Chaerephon pumilus_, and _Mops midas_
+
+```{r, results = 'asis'}
+
+df_filter = df %>%
+    filter(! ScientificName %in% c("Neoromicia cf. somalica", "Mops midas"))
+
+m1 = glm(is_positive ~ Sex + AgeClass + SeasonModelled + ScientificName,
+           data = df_filter, family = binomial)
+
+# summary(m1)
+print_md(model_parameters(m1, exponentiate = TRUE))
+
+# 
+# m2 = glm(is_positive ~ Sex + SeasonModelled + ScientificName,
+#            data = df_filter, family = binomial)
+# 
+# # summary(m2)
+# print_md(model_parameters(m2, exponentiate = TRUE))
+
+
+df_filter = df %>%
+    filter(! ScientificName %in% c("Neoromicia cf. somalica"))
+
+
+m3 = glm(is_positive ~ Sex + SeasonModelled + ScientificName,
+           data = df_filter, family = binomial)
+
+# summary(m3)
+print_md(model_parameters(m3, exponentiate = TRUE))
+
+glm(is_positive ~ Sex + AgeClass + SeasonModelled + ScientificName,
+    data = df_filter, family = binomial) %>%
+    model_parameters(exponentiate = TRUE) %>%
+    print_md()
+
+```
