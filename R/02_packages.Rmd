@@ -1,0 +1,25 @@
+
+---
+title: "Packages used in analysis"
+output: 
+  html_document:
+    toc: false
+    toc_depth: 4
+    theme: cerulean
+    highlight: zenburn
+always_allow_html: true
+---
+
+
+
+```{r,results = 'asis'}
+pkgs = names(sessionInfo()$otherPkgs)
+
+invisible(lapply(seq_along(pkgs), function(n, pkgs) {
+    pkg = pkgs[[n]]
+    cat(paste0("### ", n, ". ", pkg, "\n"))
+    print(citation(pkg))
+    return(NULL)
+}, pkgs))
+
+```
