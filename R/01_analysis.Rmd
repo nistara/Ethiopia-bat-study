@@ -21,8 +21,10 @@ knitr::opts_chunk$set(fig.width = 12,
                       echo = TRUE, warning = FALSE, message = FALSE)
 
 options(DT.options = list(pageLength = 100,
-                          dom = 'Bft',
+                          dom = 't',
                           filter = "top"))
+
+
 
 out_figs_dir = "results/figs"
 if( !exists(out_figs_dir) ) dir.create(out_figs_dir, recursive = TRUE)
@@ -101,6 +103,13 @@ datatable(xtable(table(df$tests_done)), options = list(dom = 't'))
 # lapply(split(events, events$site_name), function(x) sort(unique(x$event_date)))
 lapply(split(df, df$SiteName), function(x) sort(unique(x$EventDate)))
 # lapply(split(df, df$SiteName), function(x) table(x$EventDate, x$SeasonModelled, x$ScientificName, x$ConcurrentSamplingSite))
+
+# df %>%
+# group_by(EventMY, EventDate, SeasonModelled) %>%
+# tally() %>%
+# group_by(EventMY) %>%
+# mutate(id = 1:n()) %>%
+# arrange(EventDate)
 
 ```
 
@@ -282,7 +291,8 @@ include_graphics(myimages)
 
 ```{r, echo = TRUE}
 out_file = file.path(here(), "manuscript_figures")
-myimages = list.files(out_file, pattern = "Figure-2", full.names = TRUE)
+myimages = list.files(out_file, pattern = glob2rx("Figure-2*png"),
+                      full.names = TRUE)
 include_graphics(myimages)
 ```
 
@@ -401,15 +411,19 @@ df %>%
 
 ```{r}
 
-bat_virus_n = df %>%
-    select(pos_virus, ScientificName, AnimalID) %>%
-    group_by(pos_virus, ScientificName) %>%
-    tally()
+df_p =
+
+    df %>%
+    mutate(SeasonModelled = factor(SeasonModelled),
+           SeasonModelled = fct_rev(SeasonModelled),
+           ScientificName = ifelse(ScientificName %in% "Rhinopoma hardwickii",
+                                   paste0(ScientificName, " (Cave)"),
+                                   paste0(ScientificName, " (Building)")))
     
 
 virus_plot =
 
-    df %>%
+    df_p %>%
     select(pos_virus, pos_virus_n, pos_virus_family,
            ScientificName, SeasonModelled) %>%
     drop_na() %>%
@@ -420,14 +434,14 @@ virus_plot =
     arrange(pos_virus_family, desc(n)) %>%
     as.data.frame %>%
     mutate(pos_virus = factor(pos_virus, unique(pos_virus)),
-           pos_virus = fct_rev(pos_virus),
-           ScientificName = factor(ScientificName,
-                                   levels = c(
-                                   "Rhinopoma hardwickii",
-                                   "Chaerephon pumilus",
-                                   "Mops midas", 
-                                   "Neoromicia cf. somalica"
-                                   ))) %>%
+           pos_virus = fct_rev(pos_virus)
+           # ScientificName = factor(ScientificName,
+           # levels = c(
+           # "Rhinopoma hardwickii",
+           # "Chaerephon pumilus",
+           # "Mops midas", 
+           # "Neoromicia cf. somalica"
+           ) %>%
     # ggplot( aes(x=pos_virus, y=n, fill = as.factor(pos_virus_n), label = n) ) +
     ggplot(aes(x = reorder(pos_virus, n), y=n, fill = ScientificName, label = n) ) +
     facet_wrap( ~ SeasonModelled ) +
@@ -439,23 +453,39 @@ virus_plot =
     coord_flip() +
     theme_ipsum(base_size = 10) +
     theme(
-      panel.grid.minor.y = element_blank(),
-      panel.grid.major.y = element_blank(),
-      legend.position="right",
-      legend.text = element_text(face = "italic")
+        axis.text.y = element_text(size = 8),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        legend.position="right",
+        legend.text = element_text(face = "italic")
     ) +
     xlab("") +
-    ylab("Number of bats") +
+    ylab("Number of bats sampled") +
     labs(title = "Viruses detected in bats")
 
 
 cowplot::save_plot("results/figs/virus-plot.pdf",
-                   virus_plot, base_height = 5)
+                   virus_plot, base_height = 6)
 
 virus_plot
+
+df %>%
+group_by(ScientificName, SeasonModelled, is_positive) %>%
+    tally() %>%
+    mutate(is_positive = ifelse(is_positive, "Positive", "Negative")) %>%
+    pivot_wider(names_from = is_positive, values_from = n) %>%
+    adorn_totals("col") %>%
+    mutate(pos_percent = round((Positive/Total * 100), 2)) %>%
+    datatable(options = list(dom = 't'), filter = list(position = "top"))
+
 ```
 
-<!-- ![](../figures/Figure 3 Virus-plot.png) -->
+```{r, echo = TRUE}
+out_file = file.path(here(), "manuscript_figures")
+myimages = list.files(out_file, pattern = glob2rx("Figure-3*png"),
+                      full.names = TRUE)
+include_graphics(myimages)
+```
 
 <br><br>
 
@@ -729,13 +759,6 @@ m1 = glm(is_positive ~ Sex + AgeClass + SeasonModelled + ScientificName,
 
 # summary(m1)
 print_md(model_parameters(m1, exponentiate = TRUE))
-
-# 
-# m2 = glm(is_positive ~ Sex + SeasonModelled + ScientificName,
-#            data = df_filter, family = binomial)
-# 
-# # summary(m2)
-# print_md(model_parameters(m2, exponentiate = TRUE))
 
 
 df_filter = df %>%
