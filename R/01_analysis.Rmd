@@ -3,7 +3,7 @@ title: "Ethiopia manuscript results"
 output: 
   html_document:
     toc: true
-    toc_depth: 4
+    toc_depth: 3
     theme: cerulean
     highlight: zenburn
     code_folding: hide
@@ -47,9 +47,6 @@ library(finalfit)
 library(dplyr)
 library(stringr)
 library(janitor)
-# library(sf)
-# library(ggsn)
-# library(htmltools)
 library(lme4)
 library(extrafont)
 library(cowplot)
@@ -78,6 +75,13 @@ names(bats_res)
 
 df = bats_res
 df$Family = str_to_title(df$Family)
+df$AgeClass = word(df$AgeClass, 1)
+
+date_order = unique(format(as.Date(sort(df$EventDate), format = "%Y-%m-%d"),
+                        "%Y-%B"))
+df$EventMY = format(as.Date(df$EventDate, format = "%Y-%m-%d"), "%Y-%B")
+df$EventMY = factor(df$EventMY, levels = date_order, ordered = TRUE)
+
 tests = left_join(tests, df[ , c("AnimalID", "Family")], by = "AnimalID")
 
 ```
@@ -136,31 +140,26 @@ df %>%
 <br><br>
 
 
-### Figure 1: Sampling effort by event
+### Figure 2: Sampling effort by event
 
 ```{r}
 
-date_order = unique(format(as.Date(sort(df$EventDate), format = "%Y-%m-%d"),
-                        "%Y-%B"))
-df$EventDate = format(as.Date(df$EventDate, format = "%Y-%m-%d"), "%Y-%B")
-df$EventDate = factor(df$EventDate, levels = date_order, ordered = TRUE)
-
 
 p_df = df %>%
-    group_by(ConcurrentSamplingSite, SeasonModelled, EventDate,
-             Sex, AgeClass, is_positive) %>%
-    arrange(EventDate) %>%
+    group_by(EventMY, is_positive) %>%
+    arrange(EventMY) %>%
     summarize(n = n()) %>%
-    mutate(is_positive = ifelse(is_positive, "Positive", "Negative")) %>%
-    mutate(is_positive = factor(is_positive, levels = c("Positive", "Negative")))
+    mutate(is_positive = ifelse(is_positive, "Virus Positive", "Virus Negative")) %>%
+    mutate(is_positive = factor(is_positive, levels = c("Virus Positive", "Virus Negative")))
 
-levels(p_df$EventDate) = gsub("-", "\n", levels(p_df$EventDate))
+levels(p_df$EventMY) = gsub("-", "\n", levels(p_df$EventMY))
 
-event_plot = ggplot(p_df, aes(x = EventDate, y = n, fill = is_positive, label = n)) +
+event_plot = ggplot(p_df, aes(x = EventMY, y = n, fill = is_positive, label = n)) +
     geom_bar(stat="identity", width = 0.5) +
     scale_fill_manual(values = c("#BD4F2C", "#2C42BD"), name = "Test result") +
     theme_ipsum(base_size = 12) +
     ylab("Number of bats") +
+    xlab("") +
     theme(
         panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(),
@@ -279,7 +278,13 @@ myimages = list.files(out_dir, pattern = ".png", full.names = TRUE)
 include_graphics(myimages)
 ```
 
-<!-- ![](../figures/Figure 2 Event-timeline_V2.png) -->
+#### These images were compiled in Affinity Designer 1.8.3 to generate the following figure:
+
+```{r, echo = TRUE}
+out_file = file.path(here(), "manuscript_figures")
+myimages = list.files(out_file, pattern = "Figure-2", full.names = TRUE)
+include_graphics(myimages)
+```
 
 <br><br>
 
@@ -392,7 +397,7 @@ df %>%
 
 <br><br>
 
-### Figure 2. Virus plot
+### Figure 3. Virus plot
 
 ```{r}
 
@@ -528,8 +533,6 @@ was set at P  0.05 (Raymond and Rousset 1995).
 #### Crosstable
 ```{r}
 
-df$AgeClass = word(df$AgeClass, 1)
-
 # table1( ~ is_positive | Sex, df)
 
 # Crosstable 
@@ -587,7 +590,6 @@ knitr::kable(t3, align=c("l", "l", "r", "r", "r"))
 ### Data
 ```{r, results='asis'}
 
-df$AgeClass = word(df$AgeClass, 1)
 
 df_summary = df %>%
     group_by(ScientificName, SiteName, SeasonModelled, Sex, AgeClass, is_positive) %>%
