@@ -6,6 +6,7 @@ output:
     toc_depth: 4
     theme: cerulean
     highlight: zenburn
+    code_folding: hide
 always_allow_html: true
 ---
 
@@ -21,16 +22,18 @@ knitr::opts_chunk$set(fig.width = 12,
 
 options(DT.options = list(pageLength = 100,
                           dom = 'Bft',
-                          filter = "top",
-                          buttons = c('copy', 'csv')))
+                          filter = "top"))
 
 out_figs_dir = "results/figs"
 if( !exists(out_figs_dir) ) dir.create(out_figs_dir, recursive = TRUE)
 ```
 
 
+## Setting up the workspace
 ```{r}
 
+# Packages
+# ------------------------------------------------------------------------------
 library(tidyr)
 library(ggplot2)
 library(knitr)
@@ -52,13 +55,14 @@ library(extrafont)
 library(cowplot)
 library(knitr)
 library(parameters)
+library(here)
 
 # Load fonts
 extrafont::loadfonts(quiet = TRUE)
 
 ```
 
-
+## Loading data
 ```{r input-data, results = 'hide'}
 
 bats_res = readRDS("data/Ethiopia_bat-info_test-summary.RDS")
@@ -85,6 +89,19 @@ datatable(xtable(table(df$tests_done)), options = list(dom = 't'))
 
 <br><br>
 
+## Sampling events
+### Unique events
+
+```{r}
+
+# lapply(split(events, events$site_name), function(x) sort(unique(x$event_date)))
+lapply(split(df, df$SiteName), function(x) sort(unique(x$EventDate)))
+# lapply(split(df, df$SiteName), function(x) table(x$EventDate, x$SeasonModelled, x$ScientificName, x$ConcurrentSamplingSite))
+
+```
+
+<br><br>
+
 ## Number of bats testing positive
 Number of bats tested = `r nrow(df)`
 
@@ -104,21 +121,24 @@ datatable(xtable(table(df$ScientificName, df$Family)))
 
 <br><br>
 
-## Sampling events
-### Unique events
+
+## Breakdown of data by species, sex, age, and season sampled
 
 ```{r}
 
-# lapply(split(events, events$site_name), function(x) sort(unique(x$event_date)))
-lapply(split(df, df$SiteName), function(x) sort(unique(x$EventDate)))
-lapply(split(df, df$SiteName), function(x) table(x$EventDate, x$SeasonModelled, x$ScientificName, x$ConcurrentSamplingSite))
+df %>%
+    group_by(ScientificName, Sex, AgeClass, SeasonModelled) %>%
+    tally() %>%
+    datatable(options = list(dom = 't'), filter = list(position = "top"))
+
 ```
 
 <br><br>
 
+
 ### Figure 1: Sampling effort by event
 
-```{r, include = FALSE}
+```{r}
 
 date_order = unique(format(as.Date(sort(df$EventDate), format = "%Y-%m-%d"),
                         "%Y-%B"))
@@ -136,30 +156,26 @@ p_df = df %>%
 
 levels(p_df$EventDate) = gsub("-", "\n", levels(p_df$EventDate))
 
-event_p =
-
-    ggplot(p_df, aes(x = EventDate, y = n, fill = is_positive, label = n)) +
+event_plot = ggplot(p_df, aes(x = EventDate, y = n, fill = is_positive, label = n)) +
     geom_bar(stat="identity", width = 0.5) +
     scale_fill_manual(values = c("#BD4F2C", "#2C42BD"), name = "Test result") +
     theme_ipsum(base_size = 12) +
     ylab("Number of bats") +
     theme(
-      panel.grid.minor.x = element_blank(),
-      panel.grid.major.x = element_blank(),
-      panel.grid = element_blank(),
-      panel.border = element_blank(),
-      legend.position = "top") +
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.border = element_blank(),
+        legend.position = "top") +
     scale_y_continuous(expand = c(0,1)) 
 
+event_plot
+
+cowplot::save_plot("results/figs/event-plot.pdf", event_plot, base_height = 6)
+cowplot::save_plot("results/figs/event-plot.png", event_plot, base_height = 6)
 
 
-cowplot::save_plot("results/figs/event-plot.pdf", event_p, base_height = 6)
-cowplot::save_plot("results/figs/event-plot.png", event_p, base_height = 6)
-
-
-bat_plot =
-
-    df %>%
+bat_plot = df %>%
     select(ScientificName, is_positive) %>%
     group_by(ScientificName, is_positive) %>%
     summarize(n = n()) %>%
@@ -167,10 +183,10 @@ bat_plot =
     as.data.frame %>%
     mutate(ScientificName = factor(ScientificName,
                                    levels = c(
-                                              "Neoromicia cf. somalica",
-                                              "Mops midas",
-                                              "Chaerephon pumilus",
-                                              "Rhinopoma hardwickii"
+                                                "Neoromicia cf. somalica",
+                                                "Mops midas",
+                                                "Chaerephon pumilus",
+                                                "Rhinopoma hardwickii"
                                             ))) %>%
     ggplot( aes(x = ScientificName, y= -n,
                 fill = as.factor(-is_positive), width = 0.75)) +
@@ -183,14 +199,14 @@ bat_plot =
     coord_flip() +
     theme_ipsum(base_size = 12, plot_title_size = 12) +
     theme(
-      panel.grid.minor.y = element_blank(),
-      panel.grid.major.y = element_blank(),
-      legend.position="none"
-    ) +
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        legend.position="none") +
     xlab("") +
     ylab("Number of bats") +
     labs(title = "Species tested")
 
+bat_plot
 
 cowplot::save_plot("results/figs/bat-plot.pdf", bat_plot, base_height = 3)
 
@@ -224,7 +240,7 @@ blank_theme = theme_minimal()+
 out_dir = "results/figs/event_pie"
 if( !dir.exists(out_dir)) dir.create(out_dir)
 
-lapply(sp_l, function(sp, out_dir) {
+invisible(lapply(sp_l, function(sp, out_dir) {
     
     if(nrow(sp) > 1) {
         sp_p = sp %>%
@@ -235,8 +251,6 @@ lapply(sp_l, function(sp, out_dir) {
             theme_minimal() +
             blank_theme
 
-        out_n = file.path(out_dir, paste0(gsub(" ", "_", unique(sp$sp_e)), ".pdf"))
-        cowplot::save_plot(out_n, sp_p, base_height = .5)
         
     } else {
         sp_p = sp %>%
@@ -247,13 +261,22 @@ lapply(sp_l, function(sp, out_dir) {
             theme_minimal() +
             blank_theme
 
-        out_n = file.path(out_dir, paste0(gsub(" ", "_", unique(sp$sp_e)), ".pdf"))
-        cowplot::save_plot(out_n, sp_p, base_height = .5)
     }
+
+    out_name_pdf = file.path(out_dir, paste0(gsub(" ", "_", unique(sp$sp_e)), ".pdf"))
+        out_name_png = file.path(out_dir, paste0(gsub(" ", "_", unique(sp$sp_e)), ".png"))
+        cowplot::save_plot(out_name_pdf, sp_p, base_height = .5)
+        cowplot::save_plot(out_name_png, sp_p, base_height = .5)
         
-}, out_dir)
+}, out_dir))
 
 
+```
+
+```{r, echo = TRUE, out.width="15%"}
+out_dir = file.path(here(), "results/figs/event_pie")
+myimages = list.files(out_dir, pattern = ".png", full.names = TRUE)
+include_graphics(myimages)
 ```
 
 <!-- ![](../figures/Figure 2 Event-timeline_V2.png) -->
