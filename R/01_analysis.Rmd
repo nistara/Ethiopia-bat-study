@@ -776,4 +776,14 @@ glm(is_positive ~ Sex + AgeClass + SeasonModelled + ScientificName,
     model_parameters(exponentiate = TRUE) %>%
     print_md()
 
+dd =
+    df %>%
+    group_by(EventMY, EventDate, SeasonModelled, ConcurrentSamplingSite) %>%
+    tally() %>%
+    group_by(EventMY) %>%
+    mutate(id = 1:n()) %>%
+    arrange(EventDate)
+
+df_filter = left_join(df_filter, dd, by = c("EventDate", "EventMY"))
+
 ```
