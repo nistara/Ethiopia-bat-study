@@ -2,7 +2,8 @@
 
 Code for manuscript
 
-Citation for code: 
+Citation for code: [![DOI](https://zenodo.org/badge/450658826.svg)](https://zenodo.org/badge/latestdoi/450658826)
+
 
 **Authors:** Jennifer K. Lane<sup>1</sup>*, Yohannes Negash<sup>2</sup>*, Nistara Randhawa<sup>1</sup>, Nigatu Kebede<sup>2</sup>, Girma Ayalew<sup>3</sup>, Simon J. Anthony<sup>4</sup>, Heather Wells<sup>4</sup>, Brett Smith<sup>1</sup>, Tracey Goldstein<sup>5</sup>, Tesfu Kassa<sup>2</sup>, Jonna A.K. Mazet<sup>1</sup>, PREDICT Consortium<sup>6</sup>, Woutrina A. Smith<sup>1</sup>
 
