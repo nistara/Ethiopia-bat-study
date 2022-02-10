@@ -9,12 +9,12 @@ Citation for code:
 
 **Author Affiliations:**
 
-^1One Health Institute, School of Veterinary Medicine, University of California Davis, Davis, CA 95616, USA
-^2Aklilu Lemma Institute of Pathobiology, Addis Ababa University, P.O. Box 1176, Addis Ababa, Ethiopia 
-^3Ethiopian Wildlife Conservation Authority, Ministry of Environment, Forestry and Climate Change, Addis Ababa, Ethiopia 
-^4 School of Veterinary Medicine, University of California Davis, Davis, CA 95616, USA
-^5 United States Agency for International Development, Washington, DC, USA
-^6 The complete list of the PREDICT consortium can be found online at https://ohi.sf.ucdavis.edu/programs-projects/predict-project/authorship 
+<sup>^1</sup>One Health Institute, School of Veterinary Medicine, University of California Davis, Davis, CA 95616, USA
+<sup>^2</sup>Aklilu Lemma Institute of Pathobiology, Addis Ababa University, P.O. Box 1176, Addis Ababa, Ethiopia 
+<sup>^3</sup>Ethiopian Wildlife Conservation Authority, Ministry of Environment, Forestry and Climate Change, Addis Ababa, Ethiopia 
+<sup>^4</sup> School of Veterinary Medicine, University of California Davis, Davis, CA 95616, USA
+<sup>^5</sup> United States Agency for International Development, Washington, DC, USA
+<sup>^6</sup> The complete list of the PREDICT consortium can be found online at https://ohi.sf.ucdavis.edu/programs-projects/predict-project/authorship 
 
 
 *Jennifer K. Lane and Yohannes Negash contributed equally to this work.
