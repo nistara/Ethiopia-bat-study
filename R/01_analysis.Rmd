@@ -3,10 +3,10 @@ title: "Ethiopia manuscript results"
 output: 
   html_document:
     toc: true
-    toc_depth: 3
+    toc_depth: 2
     theme: cerulean
     highlight: zenburn
-    code_folding: hide
+    <!-- code_folding: hide -->
 always_allow_html: true
 ---
 
@@ -31,11 +31,11 @@ if( !exists(out_figs_dir) ) dir.create(out_figs_dir, recursive = TRUE)
 ```
 
 
-## Setting up the workspace
-```{r}
+## Setting up the workspace and loading data
+```{r,  results = 'hide'}
 
 # Packages
-# ------------------------------------------------------------------------------
+# ==============================================================================
 library(tidyr)
 library(ggplot2)
 library(knitr)
@@ -59,25 +59,26 @@ library(here)
 # Load fonts
 extrafont::loadfonts(quiet = TRUE)
 
-```
 
-## Loading data
-```{r input-data, results = 'hide'}
-
+# Load data
+# ==============================================================================
 bats_res = readRDS("data/Ethiopia_bat-info_test-summary.RDS")
 bats_res$SiteName = trimws(gsub("-\\<Bat\\>|\\<Bat\\>", "", bats_res$SiteName))
 bats_res$ConcurrentSamplingSite = bats_res$SiteName
 
 tests = readRDS("data/Ethiopia_bat-test-info.RDS")
 tests$SiteName = trimws(gsub("-\\<Bat\\>|\\<Bat\\>", "", tests$SiteName))
+tests$Interface = ifelse(tests$ScientificName %in% "Rhinopoma hardwickii",
+                      "Cave", "Building")
 
 events = readRDS("data/Ethiopia_bat-sampling-events.RDS")
-
-names(bats_res)
 
 df = bats_res
 df$Family = str_to_title(df$Family)
 df$AgeClass = word(df$AgeClass, 1)
+
+df$Interface = ifelse(df$ScientificName %in% "Rhinopoma hardwickii",
+                      "Cave", "Building")
 
 date_order = unique(format(as.Date(sort(df$EventDate), format = "%Y-%m-%d"),
                         "%Y-%B"))
@@ -88,28 +89,46 @@ tests = left_join(tests, df[ , c("AnimalID", "Family")], by = "AnimalID")
 
 ```
 
-##### Check that all bats were tested the same (unique test combinations):
+<br><br>
+
+## Sampling events
+
 ```{r}
-datatable(xtable(table(df$tests_done)), options = list(dom = 't'))
+
+df %>%
+    group_by(SiteName, EventDate, SeasonModelled) %>%
+    tally(name = "No. of bats sampled") %>%
+    group_by(EventDate) %>%
+    arrange(SiteName, EventDate) %>%
+    adorn_totals("row") %>%
+    datatable(options = list(dom = 't'), rownames = FALSE)
+
 ```
 
 <br><br>
 
-## Sampling events
-### Unique events
+## Viral families tested
+```{r}
+
+df %>%
+    group_by(tests_done) %>%
+    tally() %>%
+    datatable(options = list(dom = 't'), rownames = FALSE)
+    
+```
+
+<br><br>
+
+## Species of bats tested
 
 ```{r}
 
-# lapply(split(events, events$site_name), function(x) sort(unique(x$event_date)))
-lapply(split(df, df$SiteName), function(x) sort(unique(x$EventDate)))
-# lapply(split(df, df$SiteName), function(x) table(x$EventDate, x$SeasonModelled, x$ScientificName, x$ConcurrentSamplingSite))
-
-# df %>%
-# group_by(EventMY, EventDate, SeasonModelled) %>%
-# tally() %>%
-# group_by(EventMY) %>%
-# mutate(id = 1:n()) %>%
-# arrange(EventDate)
+df %>%
+    select(Family, ScientificName) %>%
+    group_by(Family, ScientificName) %>%
+    tally() %>%
+    adorn_totals("row") %>%
+    datatable(options = list(dom = 't'), rownames = FALSE)
 
 ```
 
@@ -124,35 +143,117 @@ Percent bats testing positive  = `r (sum(df$is_positive)/nrow(df)) * 100`
 
 <br><br>
 
-## Species of bats tested
+## Figure 1. Sampling sites
 
-```{r}
+Made with ArcGIS 10.1
 
-datatable(xtable(table(df$ScientificName, df$Family)))
-
+```{r, echo = TRUE}
+out_file = file.path(here(), "manuscript_figures")
+myimages = list.files(out_file, pattern = glob2rx("Figure-1*png"),
+                      full.names = TRUE)
+include_graphics(myimages)
 ```
 
 <br><br>
 
-
-## Breakdown of data by species, sex, age, and season sampled
+## Table 1. Summary of  bats sampled and viral testing results
 
 ```{r}
 
-df %>%
-    group_by(ScientificName, Sex, AgeClass, SeasonModelled) %>%
+df_ani =
+
+    tests %>%
+    select(SiteName, Interface, Family, ScientificName, AnimalID, VirusGroup) %>%
+    group_by(SiteName, Interface, Family, ScientificName) %>%
+    summarize(total_bats = length(unique(AnimalID))) %>%
+    as.data.frame() %>%
+    adorn_totals("row")
+
+
+
+df_pos_ani =
+
+    tests %>%
+    select(SiteName, Family, ScientificName, AnimalID, VirusGroup) %>%
+    filter( !is.na(VirusGroup)) %>%
+    group_by(SiteName, Family, ScientificName) %>%
+    summarize(pos_bats = length(unique(AnimalID))) %>%
+    as.data.frame() %>%
+    adorn_totals("row")
+
+
+df_ani$pos_bats = paste0(
+                      round(df_pos_ani$pos_bats/df_ani$total_bats * 100),
+                      "% (", df_pos_ani$pos_bats, ")")
+                      
+
+df_spmn = 
+
+    tests %>%
+    select(SiteName, ScientificName, SpecimenType, SpecimenID) %>%
+    mutate(SpecimenType = paste0("n_",
+                                 gsub(" ", "_", SpecimenType))) %>%
+    group_by(SiteName, ScientificName, SpecimenType) %>%
+    summarize(total = length(unique(SpecimenID))) %>%
+    as.data.frame() %>%
+    spread(SpecimenType, total) %>%
+    adorn_totals("row") %>%
+    select(-SiteName)
+
+df_pos_spmn =
+
+    tests %>%
+    select(SiteName, ScientificName, SpecimenType, SpecimenID, VirusGroup) %>%
+    filter( !is.na(VirusGroup)) %>%
+    mutate(SpecimenType = gsub(" ", "_", SpecimenType)) %>%
+    group_by(SiteName, ScientificName, SpecimenType) %>%
+    summarize(pos = length(unique(SpecimenID))) %>%
+    as.data.frame() %>%
+    spread(SpecimenType, pos) %>%
+    mutate_all(~replace_na(., 0)) %>%
+    adorn_totals("row") %>%
+    select( -SiteName)
+
+df_pos_spmn$oral_swab = paste0(
+                            round(df_pos_spmn$oral_swab/df_spmn$n_oral_swab * 100),
+                            "% (", df_pos_spmn$oral_swab, ")")
+
+df_pos_spmn$rectal_swab = paste0(
+                              round(df_pos_spmn$rectal_swab/df_spmn$n_rectal_swab * 100),
+                              "% (", df_pos_spmn$rectal_swab, ")")
+
+
+pos_viruses =
+
+    df %>%
+    select(ScientificName, pos_virus) %>%
+    filter( !is.na(pos_virus)) %>%
+    separate_rows(pos_virus, sep = "; ") %>%
+    group_by(ScientificName, pos_virus) %>%
     tally() %>%
-    datatable(options = list(dom = 't'), filter = list(position = "top"))
+    mutate(viruses = paste0(pos_virus, " (", n, ")")) %>%
+    group_by(ScientificName) %>%
+    summarize(
+        Viruses = paste0(sort(unique(viruses)), collapse = "<br/><br/>"))
+
+
+bat_virus_info = left_join(df_ani, df_pos_spmn, by = "ScientificName")
+bat_virus_info = left_join(bat_virus_info, pos_viruses, by = "ScientificName")
+
+datatable(bat_virus_info, escape = FALSE, rownames = FALSE)
 
 ```
 
 <br><br>
 
+## Figure 2. Summary by sampling month, season, bat species, and sampling interface/location
 
-### Figure 2: Sampling effort by event
+<br>
+
+#### Figure subcomponent 1: positives by sampling month and season
+
 
 ```{r}
-
 
 p_df = df %>%
     group_by(EventMY, is_positive) %>%
@@ -175,14 +276,34 @@ event_plot = ggplot(p_df, aes(x = EventMY, y = n, fill = is_positive, label = n)
         panel.grid = element_blank(),
         panel.border = element_blank(),
         legend.position = "top") +
-    scale_y_continuous(expand = c(0,1)) 
+    scale_y_continuous(expand = c(0,1))
 
-event_plot
+p_season_df = df %>%
+    group_by(EventMY, SeasonModelled) %>%
+    arrange(EventMY) %>%
+    summarize(n = n())
+
+levels(p_season_df$EventMY) = gsub("-", "\n", levels(p_season_df$EventMY))
+
+event_plot = event_plot + geom_text(data = p_season_df,
+                       aes(label = SeasonModelled,
+                           x = EventMY, y = n,
+                           fill = NULL),
+                       nudge_y = 2,
+                       size = 3)
+
 
 cowplot::save_plot("results/figs/event-plot.pdf", event_plot, base_height = 6)
 cowplot::save_plot("results/figs/event-plot.png", event_plot, base_height = 6)
 
+event_plot
 
+```
+
+<br><br>
+
+#### Figure subcomponent 2: bat species tested
+```{r}
 bat_plot = df %>%
     select(ScientificName, is_positive) %>%
     group_by(ScientificName, is_positive) %>%
@@ -214,11 +335,18 @@ bat_plot = df %>%
     ylab("Number of bats") +
     labs(title = "Species tested")
 
-bat_plot
-
 cowplot::save_plot("results/figs/bat-plot.pdf", bat_plot, base_height = 3)
 
-# Pie charts for species-event timeline
+bat_plot
+
+```
+
+<br><br>
+
+#### Figure subcomponent 3: Pie charts for species-event timeline
+
+```{r}
+
 sp_df = df %>%
     select(ScientificName, is_positive, EventDate) %>%
     group_by(ScientificName, is_positive, EventDate) %>%
@@ -287,7 +415,7 @@ myimages = list.files(out_dir, pattern = ".png", full.names = TRUE)
 include_graphics(myimages)
 ```
 
-#### These images were compiled in Affinity Designer 1.8.3 to generate the following figure:
+#### Final Figure 2 compiled with above subcomponents in Affinity Designer 1.8.3
 
 ```{r, echo = TRUE}
 out_file = file.path(here(), "manuscript_figures")
@@ -298,117 +426,12 @@ include_graphics(myimages)
 
 <br><br>
 
-## General virus information
-### Numbers of viruses detected
-```{r}
 
-datatable(xtable(table(unlist(strsplit(df$pos_virus[ df$is_positive ], "; ")))))
-
-```
+## Figure 3. Viral findings by bat species and sampling interface
 
 <br><br>
 
-## Specific virus information
-### Table 1. Positive bats frequency by family, species and site name
-
-```{r}
-
-df_ani =
-
-    tests %>%
-    select(SiteName, ScientificName, AnimalID) %>%
-    group_by(SiteName, ScientificName) %>%
-    summarize(total_bats = length(unique(AnimalID))) %>%
-    as.data.frame() %>%
-    select(ScientificName, total_bats) %>%
-    adorn_totals("row")
-
-
-
-df_pos_ani =
-
-    tests %>%
-    select(SiteName, Family, ScientificName, AnimalID, VirusGroup) %>%
-    filter( !is.na(VirusGroup)) %>%
-    group_by(SiteName, Family, ScientificName) %>%
-    summarize(bats = length(unique(AnimalID))) %>%
-    as.data.frame() %>%
-    adorn_totals("row")
-
-
-
-df_pos_ani$bats = paste0(df_pos_ani$bats, "/",
-                                  df_ani$total_bats)
-
-
-df_spmn = 
-
-    tests %>%
-    select(SiteName, ScientificName, SpecimenType, SpecimenID) %>%
-    mutate(SpecimenType = paste0("n_",
-                                 gsub(" ", "_", SpecimenType))) %>%
-    group_by(SiteName, ScientificName, SpecimenType) %>%
-    summarize(total = length(unique(SpecimenID))) %>%
-    as.data.frame() %>%
-    spread(SpecimenType, total) %>%
-    adorn_totals("row") %>%
-    select(-SiteName)
-
-df_pos_spmn =
-
-    tests %>%
-    select(SiteName, ScientificName, SpecimenType, SpecimenID, VirusGroup) %>%
-    filter( !is.na(VirusGroup)) %>%
-    mutate(SpecimenType = gsub(" ", "_", SpecimenType)) %>%
-    group_by(SiteName, ScientificName, SpecimenType) %>%
-    summarize(pos = length(unique(SpecimenID))) %>%
-    as.data.frame() %>%
-    spread(SpecimenType, pos) %>%
-    mutate_all(~replace_na(., 0)) %>%
-    adorn_totals("row") %>%
-    select( -SiteName)
-
-df_pos_spmn$oral_swab = paste0(df_pos_spmn$oral_swab, "/",
-                               df_spmn$n_oral_swab)
-
-df_pos_spmn$rectal_swab = paste0(df_pos_spmn$rectal_swab, "/",
-                                 df_spmn$n_rectal_swab)
-
-pos_viruses =
-
-    tests %>%
-    select(ScientificName, VirusGroup, ViralFamily) %>%
-    filter( !is.na(VirusGroup)) %>%
-    group_by(ScientificName) %>%
-    summarize(
-        ViralFamily = paste0(sort(unique(ViralFamily)), collapse = "; "),
-        Viruses = paste0(sort(unique(VirusGroup)), collapse = "; "))
-
-bat_virus_info = left_join(df_pos_ani, df_pos_spmn, by = "ScientificName")
-bat_virus_info = left_join(bat_virus_info, pos_viruses, by = "ScientificName")
-
-datatable(bat_virus_info)
-```
-
-<br><br>
-
-### Coinfections
-```{r}
-
-df %>%
-    filter( is_positive & pos_virus_n > 1 ) %>%
-    select(SiteName, ScientificName, pos_virus) %>%
-    group_by(SiteName, ScientificName, pos_virus) %>%
-    summarize(n_bats = n()) %>%
-    datatable()
-
-
-```
-
-<br><br>
-
-### Figure 3. Virus plot
-
+#### Figure subcomponent 1: bar chart
 ```{r}
 
 df_p =
@@ -434,15 +457,7 @@ virus_plot =
     arrange(pos_virus_family, desc(n)) %>%
     as.data.frame %>%
     mutate(pos_virus = factor(pos_virus, unique(pos_virus)),
-           pos_virus = fct_rev(pos_virus)
-           # ScientificName = factor(ScientificName,
-           # levels = c(
-           # "Rhinopoma hardwickii",
-           # "Chaerephon pumilus",
-           # "Mops midas", 
-           # "Neoromicia cf. somalica"
-           ) %>%
-    # ggplot( aes(x=pos_virus, y=n, fill = as.factor(pos_virus_n), label = n) ) +
+           pos_virus = fct_rev(pos_virus)) %>%
     ggplot(aes(x = reorder(pos_virus, n), y=n, fill = ScientificName, label = n) ) +
     facet_wrap( ~ SeasonModelled ) +
     scale_fill_manual(values = c("#CC6677", "#44AA99", "#DDCC77", "#AA4499"),
@@ -469,22 +484,64 @@ cowplot::save_plot("results/figs/virus-plot.pdf",
 
 virus_plot
 
+```
+
+<br><br>
+
+#### Figure subcomponent 2: Extra legend information
+
+```{r}
+
 df %>%
 group_by(ScientificName, SeasonModelled, is_positive) %>%
     tally() %>%
     mutate(is_positive = ifelse(is_positive, "Positive", "Negative")) %>%
     pivot_wider(names_from = is_positive, values_from = n) %>%
     adorn_totals("col") %>%
+    mutate_all(~replace_na(., 0)) %>%
     mutate(pos_percent = round((Positive/Total * 100), 2)) %>%
-    datatable(options = list(dom = 't'), filter = list(position = "top"))
+    mutate(info = paste0(pos_percent, "% (", Positive, "/", Total, ")")) %>%
+    select(ScientificName, SeasonModelled, info) %>%
+    pivot_wider(names_from = SeasonModelled, values_from = info) %>%
+    datatable(options = list(dom = 't'))
 
 ```
 
+<br><br>
+
+#### Final Figure 3 compiled with above subcomponents in Affinity Designer 1.8.3
 ```{r, echo = TRUE}
 out_file = file.path(here(), "manuscript_figures")
 myimages = list.files(out_file, pattern = glob2rx("Figure-3*png"),
                       full.names = TRUE)
 include_graphics(myimages)
+```
+
+<br><br>
+
+## Viruses detected
+```{r}
+
+tbl = xtable(table(unlist(strsplit(df$pos_virus[ df$is_positive ], "; "))))
+names(tbl) = "No. of bats testing positive for virus"
+datatable(tbl)
+
+```
+
+<br><br>
+
+## Coinfections
+```{r}
+
+df %>%
+    filter( is_positive & pos_virus_n > 1 ) %>%
+    select(SiteName, ScientificName, pos_virus) %>%
+    group_by(SiteName, ScientificName, pos_virus) %>%
+    summarize(n_bats = n()) %>%
+    datatable(colnames = c("SiteName", "ScientificName", "Virus coinfection",
+                           "No. of bats"))
+
+
 ```
 
 <br><br>
@@ -551,95 +608,59 @@ df %>%
 
 <br><br>
 
-## Table 2. Fisher's exact tests {.tabset .tabset-fade .tabset-pills}
+## Table 2. Viral prevalence in bats by sex, age class, season, species, and specimen type
 
-### Table 2. Age, Sex, Season, species, specimen type
+_Fisher's exact tests_
 
-Note from Julius' paper: Fisher’s exact test was used to
-examine the association of viral positivity with age and
-season using STATA 13.0 software. The level of significance
-was set at P  0.05 (Raymond and Rousset 1995).
-
-#### Crosstable
 ```{r}
 
-# table1( ~ is_positive | Sex, df)
-
-# Crosstable 
+# Sex, age class, season, species, and interface
+# ------------------------------------------------------------------------------
 dependent = "is_positive"
 explanatory = c("Sex",
                 "AgeClass",
                 "SeasonModelled",
-                "ScientificName")
+                "ScientificName",
+                "Interface")
 
-df %>%
+t1 = df %>%
     summary_factorlist(dependent, explanatory, 
                        p = TRUE,
-                       add_dependent_label = TRUE,
-                       p_cat = "fisher" # Fisher's Exact test 
-                       ) -> t1
-knitr::kable(t1, align=c("l", "l", "r", "r", "r"))
+                       p_cat = "fisher") # Fisher's Exact test 
+                       
 
+# Specimen type
+# ------------------------------------------------------------------------------
 df_spm = df[ , c("AnimalID", "is_positive", "pos_specimen_type")]
 df_spm = rbind(df_spm, df_spm)
 df_spm$specimen = rep(c("oral swab", "rectal swab"), each = nrow(df))
 
 df_spm$specimen_pos = mapply(grepl, df_spm$specimen, df_spm$pos_specimen_type)
 
-
-df %>%
-    mutate(interface = ifelse(ScientificName %in% "Rhinopoma hardwickii", "Cave",
-                              "Dwelling")) %>%
-    summary_factorlist("is_positive", "interface", 
-                       p = TRUE,
-                       add_dependent_label=TRUE,
-                       p_cat = "fisher" # Fisher's Exact test 
-                       ) -> t2
-knitr::kable(t2, align=c("l", "l", "r", "r", "r"))
-
-df_spm %>%
+t2 = df_spm %>%
     summary_factorlist("specimen_pos", "specimen", 
                        p = TRUE,
-                       add_dependent_label=TRUE,
-                       p_cat = "fisher" # Fisher's Exact test 
-                       ) -> t3
-knitr::kable(t3, align=c("l", "l", "r", "r", "r"))
+                       p_cat = "fisher") # Fisher's Exact test 
 
 
-# df_spm %>%
-#     ggplot(aes(x = specimen, y = specimen_pos)) +
-#     geom_bar(stat="identity", color="black", 
-#            position=position_dodge())
+# Output
+# ------------------------------------------------------------------------------
+ft = rbind(t1, t2)
+names(ft) = c("Group", "Variable", "FALSE", "TRUE", "p")
 
+ft$pos = as.numeric(gsub("\\s*\\([^\\)]+\\)", "", ft$`TRUE`))
+ft$neg = as.numeric(gsub("\\s*\\([^\\)]+\\)", "", ft$`FALSE`))
+ft$pos_percent = round((ft$pos/(ft$pos + ft$neg) * 100), 1)
 
+ft_out = ft %>%
+    mutate(pos_percent = paste0(pos_percent, "% (", pos, "/", pos + neg, ")")) %>%
+    select(Group, Variable, pos_percent, p)
+
+knitr::kable(ft_out, align = c("l", "l", "r", "r"), caption = "Table 2")
 
 ```
 
 <br><br>
-
-### Data
-```{r, results='asis'}
-
-
-df_summary = df %>%
-    group_by(ScientificName, SiteName, SeasonModelled, Sex, AgeClass, is_positive) %>%
-    summarize(n = n()) %>%
-    mutate(is_positive = ifelse(is_positive, "Positive", "Negative")) %>%
-    spread(key = is_positive, value = n) %>%
-    mutate_at(vars(Negative, Positive), replace_na, 0) %>%
-    mutate(Total = Negative + Positive) %>%
-    as.data.frame %>%
-    mutate_at(vars(AgeClass, ScientificName), as.factor) %>%
-    mutate(neg_percent = round(Negative/Total * 100, 2),
-           pos_percent = round(Positive/Total * 100, 2))
-    
-
-DT::datatable(df_summary, extensions = 'Buttons', filter = 'top', fillContainer = FALSE)
-
-```
-
-
-<br><bbr>
 
 ## Exploring age/sex/season by species {.tabset .tabset-fade .tabset-pills}
 
@@ -787,3 +808,4 @@ dd =
 df_filter = left_join(df_filter, dd, by = c("EventDate", "EventMY"))
 
 ```
+
