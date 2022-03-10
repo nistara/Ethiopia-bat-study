@@ -1,6 +1,5 @@
-
 ---
-title: "Packages used in analysis"
+title: "Session info and citations for packages used in analysis"
 output: 
   html_document:
     toc: false
@@ -10,10 +9,10 @@ output:
 always_allow_html: true
 ---
 
-
+## Package citations
 
 ```{r,results = 'asis'}
-pkgs = names(sessionInfo()$otherPkgs)
+pkgs = sort(names(sessionInfo()$otherPkgs))
 
 invisible(lapply(seq_along(pkgs), function(n, pkgs) {
     pkg = pkgs[[n]]
@@ -22,4 +21,12 @@ invisible(lapply(seq_along(pkgs), function(n, pkgs) {
     return(NULL)
 }, pkgs))
 
+```
+
+<br><br>
+
+## Session info
+
+```{r}
+sessionInfo()
 ```
