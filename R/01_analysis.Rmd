@@ -1,5 +1,5 @@
 ---
-title: "Ethiopia manuscript results"
+title: "Coronavirus and paramyxovirus shedding by bats in a cave and buildings in Ethiopia"
 output: 
   html_document:
     toc: true
@@ -10,6 +10,10 @@ output:
 always_allow_html: true
 ---
 
+<br>
+
+Code for manuscript.
+
 ##### 
 <br>
 
@@ -17,7 +21,7 @@ always_allow_html: true
 
 knitr::opts_chunk$set(fig.width = 12,
                       fig.height = 8,
-                      fig.path = '../results/figs/test-summary/',
+                      # fig.path = '../results/figs/test-summary/',
                       echo = TRUE, warning = FALSE, message = FALSE)
 
 options(DT.options = list(pageLength = 100,
@@ -49,7 +53,6 @@ library(finalfit)
 library(dplyr)
 library(stringr)
 library(janitor)
-library(lme4)
 library(extrafont)
 library(cowplot)
 library(knitr)
@@ -601,8 +604,12 @@ df %>%
     tally() %>%
     as_data_frame() %>%
     spread(pos_specimen_type, n) %>%
+    mutate_all(~replace_na(., 0)) %>%
     adorn_totals(c("row", "col")) %>%
-    datatable(options = list(dom = 't'))
+    datatable(options = list(dom = 't'),
+              colnames = c("Virus", "Oral swab only", "Oral and rectal swab",
+                           "Rectal swab only", "Total"),
+              rownames = FALSE)
 
 ```
 
@@ -662,150 +669,56 @@ knitr::kable(ft_out, align = c("l", "l", "r", "r"), caption = "Table 2")
 
 <br><br>
 
-## Exploring age/sex/season by species {.tabset .tabset-fade .tabset-pills}
+## Table 3. Association between bats testing positive for coronaviruses or paramyxoviruses and their species, sex, age, and season in which they were sampled
 
-### Rhinopoma
-#### Crosstable
-```{r}
+Multivariable logistic regression analyses
 
-# Crosstable 
-dependent = "is_positive"
-explanatory = c("Sex",
-                "AgeClass",
-                "SeasonModelled")
-
-df %>%
-    filter(ScientificName %in% "Rhinopoma hardwickii") %>%
-    summary_factorlist(dependent, explanatory, 
-                       p=TRUE,
-                       add_dependent_label=TRUE,
-                       p_cat = "fisher" # Fisher's Exact test 
-                       ) %>%
-    knitr::kable(align=c("l", "l", "r", "r", "r"))
-
-```
-
-
-<br><br>
-
-### Chaerephon
-#### Crosstable
-```{r}
-
-# Crosstable 
-dependent = "is_positive"
-explanatory = c(
-                  "Sex",
-                  "AgeClass",
-                  "SeasonModelled")
-
-df %>%
-    filter(ScientificName %in% "Chaerephon pumilus") %>%
-    summary_factorlist(dependent, explanatory, 
-                       p=TRUE,
-                       add_dependent_label=TRUE,
-                       p_cat = "fisher" # Fisher's Exact test 
-                       ) %>%
-    knitr::kable(align=c("l", "l", "r", "r", "r"))
-
-```
-
-
-<br><br>
-
-### Mops
-#### Crosstable
-```{r}
-
-# Crosstable 
-dependent = "is_positive"
-explanatory = c(
-                  "Sex",
-                  # "AgeClass", # there are no subadult for Mops
-                  "SeasonModelled")
-
-df %>%
-    filter(ScientificName %in% "Mops midas") %>%
-    summary_factorlist(dependent, explanatory, 
-                       p=TRUE,
-                       add_dependent_label=TRUE,
-                       p_cat = "fisher" # Fisher's Exact test 
-                       ) %>%
-    knitr::kable(align=c("l", "l", "r", "r", "r"))
-
-```
-
-<br><br>
-
-### Neoromicia cf. somalica
-#### Crosstable
-```{r}
-
-# Crosstable 
-dependent = "is_positive"
-explanatory = c(
-                  "Sex"
-                  # "AgeClass"
-                  # "SeasonModelled"
-              )
-
-df %>%
-    filter(ScientificName %in% "Neoromicia cf. somalica") %>%
-    summary_factorlist(dependent, explanatory, 
-                       p=TRUE,
-                       add_dependent_label=TRUE,
-                       p_cat = "fisher" # Fisher's Exact test 
-                       ) %>%
-    knitr::kable(align=c("l", "l", "r", "r", "r"))
-
-```
 
 <br>
-
----
-
-<br>
-
-
-## Multivariable logistic regression analyses
-#### For _Rhinopoma hardwickii_, _Chaerephon pumilus_, and _Mops midas_
 
 ```{r, results = 'asis'}
 
 df_filter = df %>%
-    filter(! ScientificName %in% c("Neoromicia cf. somalica", "Mops midas"))
-
-m1 = glm(is_positive ~ Sex + AgeClass + SeasonModelled + ScientificName,
-           data = df_filter, family = binomial)
-
-# summary(m1)
-print_md(model_parameters(m1, exponentiate = TRUE))
-
-
-df_filter = df %>%
     filter(! ScientificName %in% c("Neoromicia cf. somalica"))
-
-
-m3 = glm(is_positive ~ Sex + SeasonModelled + ScientificName,
-           data = df_filter, family = binomial)
-
-# summary(m3)
-print_md(model_parameters(m3, exponentiate = TRUE))
 
 glm(is_positive ~ Sex + AgeClass + SeasonModelled + ScientificName,
     data = df_filter, family = binomial) %>%
     model_parameters(exponentiate = TRUE) %>%
     print_md()
 
-dd =
-    df %>%
-    group_by(EventMY, EventDate, SeasonModelled, ConcurrentSamplingSite) %>%
-    tally() %>%
-    group_by(EventMY) %>%
-    mutate(id = 1:n()) %>%
-    arrange(EventDate)
+```
 
-df_filter = left_join(df_filter, dd, by = c("EventDate", "EventMY"))
+<br><br>
+
+#### Other
+
+Association between bats testing positive for coronaviruses or paramyxoviruses and their species, sex, age, and season in which they were sampled (_Chaerephon pumilus_ and _Rhinopoma hardwickii_)
+
+
+```{r, results = 'asis'}
+
+df_filter = df %>%
+    filter(! ScientificName %in% c("Neoromicia cf. somalica", "Mops midas"))
+
+glm(is_positive ~ Sex + AgeClass + SeasonModelled + ScientificName,
+    data = df_filter, family = binomial) %>%
+    model_parameters(exponentiate = TRUE) %>%
+    print_md()
 
 ```
 
+<br><br>
+
+Association between bats testing positive for coronaviruses or paramyxoviruses and their species, sex, and season in which they were sampled (_Chaerephon pumilus_, _Rhinopoma hardwickii_ and _Mops midas_)
+
+```{r, results = 'asis'}
+
+df_filter = df %>%
+    filter(! ScientificName %in% c("Neoromicia cf. somalica"))
+
+glm(is_positive ~ Sex + SeasonModelled + ScientificName,
+    data = df_filter, family = binomial) %>%
+    model_parameters(exponentiate = TRUE) %>%
+    print_md()
+
+```
