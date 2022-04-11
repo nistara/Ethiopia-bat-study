@@ -15,7 +15,7 @@ Citation for code: [![DOI](https://zenodo.org/badge/450658826.svg)](https://zeno
 <sup>3</sup>Department of Ecology, Evolution, and Environmental Biology, Columbia University, New York, NY 10027, USA  
 <sup>4</sup>Ethiopian Wildlife Conservation Authority, Ministry of Environment, Forestry and Climate Change, Addis Ababa, Ethiopia  
 <sup>5</sup>School of Veterinary Medicine, University of California Davis, Davis, CA 95616, USA  
-<sup>6</sup>Genome Center & Biomedical Engineer, School of Medicine, University of California, Davis, Davis, CA 95616, USA
+<sup>6</sup>Genome Center & Biomedical Engineer, School of Medicine, University of California, Davis, Davis, CA 95616, USA  
 <sup>7</sup>Zoological Pathology Program, University of Illinois at Urbana-Champaign, Brookfield, IL 60513  
 <sup>8</sup>The complete list of the PREDICT consortium can be found online at https://ohi.sf.ucdavis.edu/programs-projects/predict-project/authorship  
 
